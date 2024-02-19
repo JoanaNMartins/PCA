@@ -42,11 +42,14 @@ for label, color in zip(unique_labels, colors):
     lambda_ = np.sqrt(lambda_)
     ell = Ellipse(xy=(np.mean(group_data["PC1"]), np.mean(group_data["PC2"])),
                   width=lambda_[0] * 2 * 2, height=lambda_[1] * 2 * 2,
-                  angle=np.rad2deg(np.arccos(v[0, 0])), alpha=0.2, color=color)
+                  angle=np.rad2deg(np.arccos(v[0, 0])), alpha=0.5, color=color, lw=lw)
     ell.set_facecolor('none')
     plt.gca().add_patch(ell)
+    # Annotate ellipse with label
+    plt.annotate(label, xy=(np.mean(group_data["PC1"]), np.mean(group_data["PC2"])), xytext=(-10, 10),
+                 textcoords='offset points', ha='right', va='top', fontsize=14, color='black')
 
-plt.legend(loc="best", shadow=False, scatterpoints=1)
+
 plt.xlabel(f"F1 ({round(pca.explained_variance_ratio_[0], 4) * 100:.2f} %)")
 plt.ylabel(f"F2 ({round(pca.explained_variance_ratio_[1], 4) * 100:.2f} %)")
 

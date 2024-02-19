@@ -1,11 +1,10 @@
-import matplotlib.pyplot as plt
-import matplotlib
 import numpy as np
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from tkinter import Tk
 from tkinter.filedialog import askopenfilename
 import pandas as pd
-from matplotlib.patches import Ellipse
+from scipy.stats import chi2
+from scipy.spatial.distance import mahalanobis
 
 Tk().withdraw()
 fileName = askopenfilename()
@@ -16,39 +15,34 @@ df = df.drop(labels=0, axis=1)
 
 lda = LDA(n_components=2)
 
-X_lda = pd.DataFrame(lda.fit_transform(df, y=labels), columns = ["LD1", "LD2"])
-X_lda["labels"] = labels
+number_of_samples = df.count()[1]
 
-unique_labels = X_lda["labels"].unique()
+samples_correct = []
 
-plt.figure()
-colors = ["navy", "turquoise", "purple", "darkorange", "pink"]
-lw = 2
+for i in range(number_of_samples):
+    sample = df.iloc[[i]]
 
-matplotlib.rcParams.update({'font.size': 16})
+    df_new = df.drop(i)
+    labels_new = labels.drop(i)
 
-for name, color in zip(unique_labels, colors):
-        category_data = X_lda[X_lda["labels"] == name]
-        plt.scatter(
-                category_data["LD1"], category_data["LD2"], s=80, alpha=0.8, lw=lw, label=name, color=color
-                )
+    X_lda = lda.fit_transform(df_new, y=labels_new)
+   
+    # Compute within-class scatter matrix
+    classes = np.unique(labels_new)
+    within_class_scatter_matrix = np.zeros((X_lda.shape[1], X_lda.shape[1]))
+    for cls in classes:
+        X_cls = X_lda[labels_new == cls]
+        scatter_matrix = np.cov(X_cls, rowvar=False)
+        within_class_scatter_matrix += (len(X_cls) / len(df_new)) * scatter_matrix
 
-# Plot 95% confidence ellipses
-for label, color in zip(unique_labels, colors):
-    group_data = X_lda[X_lda["labels"] == label]
-    cov_matrix = np.cov(group_data[["LD1", "LD2"]].T)
-    lambda_, v = np.linalg.eig(cov_matrix)
-    lambda_ = np.sqrt(lambda_)
-    ell = Ellipse(xy=(np.mean(group_data["LD1"]), np.mean(group_data["LD2"])),
-                  width=lambda_[0] * 2 * 2, height=lambda_[1] * 2 * 2,
-                  angle=np.rad2deg(np.arccos(v[0, 0])), alpha=0.2, color=color)
-    ell.set_facecolor('none')
-    plt.gca().add_patch(ell)
+    inv_within_class_scatter_matrix = np.linalg.inv(within_class_scatter_matrix)
+    critical_value = chi2.ppf(0.95, df=2)
 
+    # Calculate Mahalanobis distance for the sample in the transformed space
+    sample_transformed = lda.transform(sample)[0]  # Extract 1-D array
+    mean_transformed = np.mean(X_lda, axis=0)
+    mahalanobis_distance = mahalanobis(sample_transformed, mean_transformed, inv_within_class_scatter_matrix)
+    if mahalanobis_distance <= critical_value:
+        samples_correct.append(i)
 
-
-plt.legend(loc="best", shadow=False, scatterpoints=1)
-plt.xlabel(f"F1 ({round(lda.explained_variance_ratio_[0], 4) * 100:.2f} %)")
-plt.ylabel(f"F2 ({round(lda.explained_variance_ratio_[1], 4) * 100:.2f} %)")
-
-plt.show()
+print("Samples within the 95% confidence interval:", samples_correct)
